@@ -4,7 +4,7 @@ import { resolve } from "path";
 
 export default defineConfig({
   plugins: [react()],
-  base: "/AtamaYawa/",
+  base: "/atama-yawaraka-juku/",
   define: {
     // ✅ ビルドのたびに変わる値（ビルド時刻）を埋め込む
     __BUILD_VERSION__: JSON.stringify(Date.now()),

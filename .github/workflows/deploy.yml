@@ -1,0 +1,32 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: あたまやわらか塾/clientapp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: あたまやわらか塾/clientapp
+
+      - name: Build
+        run: npx vite build
+        working-directory: あたまやわらか塾/clientapp
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: あたまやわらか塾/wwwroot

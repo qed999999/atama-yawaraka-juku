@@ -1,0 +1,808 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
+type Props = { onExit: () => void };
+
+type Hotspot = {
+  x: number; // 0..1
+  y: number; // 0..1
+  r: number; // 0..1 (short side ratio)
+  label?: string;
+};
+
+type Question = {
+  id: string;
+  title?: string;
+  leftSrc: string;
+  rightSrc: string;
+  hotspots: Hotspot[];
+};
+
+type Phase = "ready" | "playing" | "result";
+
+const FEEDBACK_MS = 900;
+const NEXT_DELAY_MS = 900;
+
+export default function SpotTheDifferenceGame({ onExit }: Props) {
+  const questions = useMemo<Question[]>(() => demoQuestions, []);
+  const [phase, setPhase] = useState<Phase>("ready");
+
+  const [qIndex, setQIndex] = useState(0);
+  const q = questions[qIndex];
+
+  const [found, setFound] = useState<Set<number>>(new Set());
+  const [feedback, setFeedback] = useState<null | { ok: boolean; kind?: "hit" | "copy" }>(null);
+
+  const feedbackTimer = useRef<number | null>(null);
+  const nextTimer = useRef<number | null>(null);
+
+  const leftWrapRef = useRef<HTMLDivElement | null>(null);
+  const rightWrapRef = useRef<HTMLDivElement | null>(null);
+
+  // ===== デバッグ（座標取り） =====
+  const [debug, setDebug] = useState(false);
+  const [debugPoint, setDebugPoint] = useState<null | {
+    which: "left" | "right";
+    nx: number;
+    ny: number;
+    r: number;
+  }>(null);
+
+  const [debugR, setDebugR] = useState(0.055);
+
+  const clearTimers = () => {
+    if (feedbackTimer.current != null) window.clearTimeout(feedbackTimer.current);
+    if (nextTimer.current != null) window.clearTimeout(nextTimer.current);
+    feedbackTimer.current = null;
+    nextTimer.current = null;
+  };
+
+  useEffect(() => () => clearTimers(), []);
+
+  const start = () => {
+    clearTimers();
+    setQIndex(0);
+    setFound(new Set());
+    setFeedback(null);
+    setDebugPoint(null);
+    setPhase("playing");
+  };
+
+  const toResult = () => {
+    clearTimers();
+    setFeedback(null);
+    setPhase("result");
+  };
+
+  const goNextQuestion = () => {
+    clearTimers();
+    setFeedback(null);
+    setFound(new Set());
+    setDebugPoint(null);
+    setQIndex((i) => i + 1);
+  };
+
+  const finishIfLast = () => {
+    if (qIndex >= questions.length - 1) toResult();
+    else goNextQuestion();
+  };
+
+  const getNormalizedPoint = (wrapEl: HTMLDivElement, clientX: number, clientY: number) => {
+    const rect = wrapEl.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+
+    const nx = clamp(px / rect.width, 0, 1);
+    const ny = clamp(py / rect.height, 0, 1);
+    return { nx, ny, rect };
+  };
+
+  const hitTest = (nx: number, ny: number, wrapRect: DOMRect) => {
+    const shortSide = Math.min(wrapRect.width, wrapRect.height);
+
+    const candidates: Array<{ idx: number; d2: number }> = [];
+    q.hotspots.forEach((h, idx) => {
+      if (found.has(idx)) return;
+      const dx = (nx - h.x) * wrapRect.width;
+      const dy = (ny - h.y) * wrapRect.height;
+      const d2 = dx * dx + dy * dy;
+      candidates.push({ idx, d2 });
+    });
+    candidates.sort((a, b) => a.d2 - b.d2);
+
+    for (const c of candidates) {
+      const h = q.hotspots[c.idx];
+      const rr = (shortSide * h.r) ** 2;
+      if (c.d2 <= rr) return c.idx;
+    }
+    return null;
+  };
+
+  // ✅ クリップボード：標準API → フォールバック（execCommand）で確実に
+  const writeClipboard = async (text: string) => {
+    // 1) 標準
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2) フォールバック
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "true");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const copyDebugSnippet = async (p: { nx: number; ny: number; r: number }) => {
+    const x = round3(p.nx);
+    const y = round3(p.ny);
+    const r = round3(p.r);
+    const text = `{ x: ${x}, y: ${y}, r: ${r} },`;
+
+    const ok = await writeClipboard(text);
+
+    // 軽い通知（feedbackを流用）
+    setFeedback({ ok, kind: "copy" });
+    clearTimers();
+    feedbackTimer.current = window.setTimeout(() => setFeedback(null), 450);
+
+    if (!ok) {
+      alert(`コピーできませんでした。手動でコピーしてください:\n${text}`);
+    }
+  };
+
+  const onClickImage = (which: "left" | "right") => (e: React.MouseEvent) => {
+    if (phase !== "playing") return;
+    const wrap = which === "left" ? leftWrapRef.current : rightWrapRef.current;
+    if (!wrap) return;
+
+    const { nx, ny, rect } = getNormalizedPoint(wrap, e.clientX, e.clientY);
+
+    // ✅ デバッグONなら「座標取り」だけ
+    if (debug) {
+      setDebugPoint({ which, nx, ny, r: debugR });
+      return;
+    }
+
+    if (!q) return;
+    if (feedback) return;
+
+    const hitIdx = hitTest(nx, ny, rect);
+
+    if (hitIdx != null) {
+      const next = new Set(found);
+      next.add(hitIdx);
+      setFound(next);
+
+      setFeedback({ ok: true, kind: "hit" });
+      clearTimers();
+      feedbackTimer.current = window.setTimeout(() => setFeedback(null), FEEDBACK_MS);
+
+      if (next.size === q.hotspots.length) {
+        nextTimer.current = window.setTimeout(() => {
+          finishIfLast();
+        }, NEXT_DELAY_MS);
+      }
+    } else {
+      setFeedback({ ok: false, kind: "hit" });
+      clearTimers();
+      feedbackTimer.current = window.setTimeout(() => setFeedback(null), FEEDBACK_MS);
+    }
+  };
+
+  if (phase === "ready") {
+    return (
+      <KidShell title="まちがいさがし" onExit={onExit}>
+        <div style={kidPanel}>
+          <div style={{ fontSize: 20, fontWeight: 1000, marginBottom: 10 }}>
+            えをタップして、まちがいを さがそう！🕵️✨
+          </div>
+
+          <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8, opacity: 0.95, fontWeight: 800 }}>
+            <li>まちがいを ぜんぶ みつけよう</li>
+            <li>ぜんぶ みつけたら つぎへ すすむよ</li>
+          </ul>
+
+          <div style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+            <button style={kidPrimaryBtn} onClick={start}>
+              🚀 スタート！
+            </button>
+          </div>
+        </div>
+      </KidShell>
+    );
+  }
+
+  if (phase === "result") {
+    return (
+      <KidShell title="けっか" onExit={onExit}>
+        <div style={kidPanel}>
+          <div style={{ fontSize: 28, fontWeight: 1000, marginBottom: 8 }}>
+            クリア！🎉🌈
+          </div>
+          <div style={{ fontSize: 16, opacity: 0.95, marginBottom: 14, fontWeight: 900 }}>
+            {questions.length} もん おわったよ！
+          </div>
+
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+            <button style={kidPrimaryBtn} onClick={start}>
+              🔁 もういっかい！
+            </button>
+          </div>
+        </div>
+      </KidShell>
+    );
+  }
+
+  // playing
+  const total = q.hotspots.length;
+  const foundCount = found.size;
+
+  return (
+    <KidShell
+      title="まちがいさがし"
+      onExit={onExit}
+      rightExtra={
+        <button style={kidSecondaryBtn} onClick={toResult}>
+          🏁 おわる
+        </button>
+      }
+    >
+      <div style={{ display: "grid", gap: 12 }}>
+        <div style={kidTopBar}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={pillPink}>
+              🧩 {q.title ?? `もんだい ${qIndex + 1}`}（{qIndex + 1}/{questions.length}）
+            </span>
+            <span style={pillBlue}>
+              🔎 みつけた：{foundCount}/{total}
+            </span>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              style={kidSecondaryBtn}
+              onClick={() => {
+                setFound(new Set());
+                setDebugPoint(null);
+              }}
+            >
+              ♻️ リセット
+            </button>
+
+            <button style={kidSecondaryBtn} onClick={finishIfLast}>
+              ⏭️ スキップ
+            </button>
+          </div>
+        </div>
+
+        <div style={kidPanel}>
+          {/* ===== 上下配置 ===== */}
+          <div style={{ display: "grid", gap: 12 }}>
+            <ImageBoard
+              ref={leftWrapRef}
+              src={q.leftSrc}
+              onClick={onClickImage("left")}
+              hotspots={q.hotspots}
+              found={found}
+              label="うえ"
+              debugPoint={debugPoint?.which === "left" ? debugPoint : null}
+              theme="kid"
+            />
+            <ImageBoard
+              ref={rightWrapRef}
+              src={q.rightSrc}
+              onClick={onClickImage("right")}
+              hotspots={q.hotspots}
+              found={found}
+              label="した"
+              debugPoint={debugPoint?.which === "right" ? debugPoint : null}
+              theme="kid"
+            />
+          </div>
+
+          {/* ✅ デバッグ枠（見た目だけ子供向け） */}
+          <div style={kidDebugBox}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 1000 }}>
+                <input type="checkbox" checked={debug} onChange={(e) => setDebug(e.target.checked)} />
+                🛠️ デバッグ（座標取り）
+              </label>
+
+              <div style={{ fontSize: 13, fontWeight: 900, opacity: 0.9 }}>
+                ※ ふだんはOFFでOK
+              </div>
+            </div>
+
+            {debug ? (
+              <>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, opacity: 0.9, fontWeight: 1000 }}>まるの大きさ</span>
+                  <input
+                    type="range"
+                    min={0.02}
+                    max={1.0}
+                    step={0.005}
+                    value={debugR}
+                    onChange={(e) => setDebugR(Number(e.target.value))}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 1000, width: 56, textAlign: "right" }}>
+                    {round3(debugR)}
+                  </span>
+                </label>
+
+                <div style={{ fontWeight: 1000, marginTop: 4 }}>📍 クリック座標</div>
+
+                {debugPoint ? (
+                  <>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                      <button style={kidSmallBtn} onClick={() => void copyDebugSnippet(debugPoint)}>
+                        📋 `{`{ x, y, r }`}` をコピー
+                      </button>
+                      <div style={{ fontSize: 13, opacity: 0.85, fontWeight: 900 }}>
+                        demoQuestions の hotspots に貼り付け
+                      </div>
+                    </div>
+
+                    <div style={codeBox}>
+                      {`{ x: ${round3(debugPoint.nx)}, y: ${round3(debugPoint.ny)}, r: ${round3(debugPoint.r)} },`}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 13, opacity: 0.9, fontWeight: 900 }}>
+                    画像をクリックすると座標が出ます
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 13, opacity: 0.9, fontWeight: 900 }}>
+                デバッグをONにすると、クリックした座標をコピーできます
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* フィードバック（子供向け演出） */}
+        {feedback && (
+          <div style={kidOverlay}>
+            <div style={kidFeedbackCard(feedback.ok)}>
+              <div style={{ fontSize: 54, fontWeight: 1000, lineHeight: 1, marginBottom: 6 }}>
+                {feedback.kind === "copy" ? (feedback.ok ? "📋" : "😵") : feedback.ok ? "🎯" : "💦"}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 1000 }}>
+                {feedback.kind === "copy"
+                  ? feedback.ok
+                    ? "コピーしたよ！"
+                    : "コピーできない…"
+                  : feedback.ok
+                    ? "やった！"
+                    : "ちがうよ！"}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 14, fontWeight: 900, opacity: 0.9 }}>
+                {feedback.kind === "hit"
+                  ? feedback.ok
+                    ? "そのちょうし！"
+                    : "もういちど さがそう！"
+                  : feedback.ok
+                    ? "貼り付けてね"
+                    : "手でコピーしてね"}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </KidShell>
+  );
+}
+
+/** 画像＋当たり表示（丸）＋デバッグ点表示 */
+const ImageBoard = React.forwardRef<
+  HTMLDivElement,
+  {
+    src: string;
+    onClick: (e: React.MouseEvent) => void;
+    hotspots: Hotspot[];
+    found: Set<number>;
+    label: string;
+    debugPoint: null | { nx: number; ny: number; r: number };
+    theme?: "kid";
+  }
+>(function ImageBoard({ src, onClick, hotspots, found, label, debugPoint, theme }, ref) {
+  const isKid = theme === "kid";
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ fontSize: 14, fontWeight: 1000, opacity: 0.95 }}>
+        {label ? `📌 ${label}` : ""}
+      </div>
+
+      <div
+        ref={ref}
+        onClick={onClick}
+        style={{
+          position: "relative",
+          width: "100%",
+          cursor: "crosshair",
+          userSelect: "none",
+          borderRadius: 18,
+          overflow: "hidden",
+          border: isKid ? "3px solid rgba(0,0,0,0.08)" : "1px solid rgba(255,255,255,0.18)",
+          boxShadow: isKid ? "0 16px 30px rgba(0,0,0,0.12)" : "none",
+          background: isKid ? "rgba(255,255,255,0.65)" : "transparent",
+        }}
+      >
+        <img
+          src={src}
+          alt={label}
+          style={{
+            width: "100%",
+            height: "auto",
+            display: "block",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* 見つけた箇所の丸表示（キッズ：カラフル） */}
+        {hotspots.map((h, idx) => {
+          if (!found.has(idx)) return null;
+          const colors = ["rgba(34,197,94,0.95)", "rgba(59,130,246,0.95)", "rgba(255,99,177,0.95)", "rgba(245,158,11,0.95)"];
+          const c = isKid ? colors[idx % colors.length] : "rgba(34,197,94,0.95)";
+          return <Circle key={idx} x={h.x} y={h.y} r={h.r} color={c} />;
+        })}
+
+        {/* デバッグ点（クリック位置） */}
+        {debugPoint && (
+          <>
+            <Circle x={debugPoint.nx} y={debugPoint.ny} r={debugPoint.r} color="rgba(124,58,237,0.95)" />
+            <div
+              style={{
+                position: "absolute",
+                left: `${debugPoint.nx * 100}%`,
+                top: `${debugPoint.ny * 100}%`,
+                transform: "translate(10px, -10px)",
+                padding: "6px 8px",
+                borderRadius: 999,
+                background: "rgba(0,0,0,0.55)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                color: "white",
+                fontSize: 12,
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                pointerEvents: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {round3(debugPoint.nx)}, {round3(debugPoint.ny)}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
+function Circle({ x, y, r, color }: { x: number; y: number; r: number; color: string }) {
+  // 元コードの「420基準」を維持（当たり円の見た目が崩れにくい）
+  const px = Math.max(26, r * 420);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: `${x * 100}%`,
+        top: `${y * 100}%`,
+        transform: "translate(-50%, -50%)",
+        width: px,
+        height: px,
+        borderRadius: 999,
+        border: `4px solid ${color}`,
+        boxShadow: `0 0 0 8px ${color.replace("0.95", "0.18")}`,
+        background: "transparent",
+        pointerEvents: "none",
+      }}
+    />
+  );
+}
+
+// ------ helpers ------
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+function round3(n: number) {
+  return Math.round(n * 1000) / 1000;
+}
+
+// ------ Kid UI wrappers ------
+function KidShell({
+  title,
+  onExit,
+  children,
+  rightExtra,
+}: {
+  title: string;
+  onExit: () => void;
+  children: React.ReactNode;
+  rightExtra?: React.ReactNode;
+}) {
+  return (
+    <div style={kidStage}>
+      <style>
+        {`
+          @keyframes kidFloat {
+            from { transform: translate3d(0,0,0); }
+            to   { transform: translate3d(-80px, -50px, 0); }
+          }
+          @keyframes pop {
+            0% { transform: scale(0.92); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+          }
+        `}
+      </style>
+
+      <div style={kidSparkles} />
+
+      <div style={kidCard}>
+        <div style={kidHeaderRow}>
+          <div style={kidTitle}>
+            <span style={{ fontSize: 28 }}>🧠</span>
+            <span>{title}</span>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {rightExtra}
+            <button style={kidSecondaryBtn} onClick={onExit}>
+              🏠 メニューへ
+            </button>
+          </div>
+        </div>
+
+        <div style={kidBodyScroll}>{children}</div>
+
+      </div>
+    </div>
+  );
+}
+
+const kidStage: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    overflow: "hidden",
+    padding:
+      "max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))",
+    boxSizing: "border-box",
+    display: "grid",
+    placeItems: "center",
+    background:
+      "radial-gradient(circle at 15% 20%, rgba(255, 230, 109, 0.35), transparent 40%)," +
+      "radial-gradient(circle at 85% 25%, rgba(255, 140, 189, 0.28), transparent 42%)," +
+      "radial-gradient(circle at 20% 85%, rgba(120, 214, 255, 0.25), transparent 45%)," +
+      "linear-gradient(180deg, #fff7fe 0%, #f1fbff 55%, #fffdf2 100%)",
+    fontFamily:
+      "ui-rounded, system-ui, -apple-system, 'Hiragino Maru Gothic ProN', 'M PLUS Rounded 1c', 'Noto Sans JP', sans-serif",
+    color: "#1b1b1b",
+  };
+  
+
+const kidSparkles: React.CSSProperties = {
+  position: "absolute",
+  inset: -40,
+  pointerEvents: "none",
+  backgroundImage:
+    "radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 2px, transparent 3px), " +
+    "radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 1.5px, transparent 3px)",
+  backgroundSize: "110px 110px, 160px 160px",
+  backgroundPosition: "0 0, 40px 60px",
+  opacity: 0.35,
+  animation: "kidFloat 10s linear infinite",
+};
+
+const kidCard: React.CSSProperties = {
+    width: "min(980px, 100%)",
+    height: "100%",
+    maxHeight: "100%",
+    borderRadius: 26,
+    padding: 16,
+    boxSizing: "border-box",
+    background: "rgba(255, 255, 255, 0.86)",
+    border: "3px solid rgba(255, 170, 220, 0.55)",
+    boxShadow: "0 18px 44px rgba(255, 120, 180, 0.18)",
+    backdropFilter: "blur(6px)",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  };
+  
+
+const kidHeaderRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const kidTitle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  fontWeight: 1000,
+  fontSize: 26,
+  color: "#ff3fa7",
+  letterSpacing: 0.2,
+};
+
+const kidTopBar: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "10px 12px",
+  borderRadius: 18,
+  background: "rgba(255,255,255,0.75)",
+  border: "2px solid rgba(0,0,0,0.06)",
+  boxShadow: "0 12px 22px rgba(0,0,0,0.10)",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const kidPanel: React.CSSProperties = {
+  padding: 14,
+  borderRadius: 22,
+  border: "3px solid rgba(80, 200, 255, 0.25)",
+  background: "rgba(255,255,255,0.92)",
+  boxShadow: "0 14px 26px rgba(0, 160, 255, 0.10)",
+  boxSizing: "border-box",
+};
+
+const kidDebugBox: React.CSSProperties = {
+  marginTop: 12,
+  padding: 12,
+  borderRadius: 18,
+  border: "2px dashed rgba(124, 58, 237, 0.22)",
+  background: "rgba(124, 58, 237, 0.05)",
+  display: "grid",
+  gap: 10,
+};
+
+const kidPrimaryBtn: React.CSSProperties = {
+  padding: "14px 18px",
+  borderRadius: 18,
+  border: "none",
+  background: "linear-gradient(180deg, #ff73c6 0%, #ff3fa7 100%)",
+  color: "#fff",
+  fontWeight: 1000,
+  fontSize: 20,
+  cursor: "pointer",
+  boxShadow: "0 10px 0 rgba(0,0,0,0.12)",
+};
+
+const kidSecondaryBtn: React.CSSProperties = {
+  padding: "12px 14px",
+  borderRadius: 18,
+  border: "2px solid rgba(0,0,0,0.08)",
+  background: "rgba(255,255,255,0.85)",
+  fontWeight: 1000,
+  fontSize: 16,
+  cursor: "pointer",
+  boxShadow: "0 8px 0 rgba(0,0,0,0.10)",
+};
+
+const kidSmallBtn: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 16,
+  border: "none",
+  background: "linear-gradient(180deg, #68d1ff 0%, #1aa8ff 100%)",
+  color: "#fff",
+  fontWeight: 1000,
+  fontSize: 14,
+  cursor: "pointer",
+  boxShadow: "0 8px 0 rgba(0,0,0,0.12)",
+};
+
+const pillPink: React.CSSProperties = {
+  fontWeight: 1000,
+  background: "rgba(255, 63, 167, 0.10)",
+  border: "2px solid rgba(255, 63, 167, 0.18)",
+  borderRadius: 999,
+  padding: "8px 12px",
+};
+
+const pillBlue: React.CSSProperties = {
+  fontWeight: 1000,
+  background: "rgba(26, 168, 255, 0.10)",
+  border: "2px solid rgba(26, 168, 255, 0.18)",
+  borderRadius: 999,
+  padding: "8px 12px",
+};
+
+const codeBox: React.CSSProperties = {
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  fontSize: 12,
+  opacity: 0.95,
+  padding: 10,
+  borderRadius: 14,
+  border: "1px solid rgba(0,0,0,0.10)",
+  background: "rgba(255,255,255,0.75)",
+  overflowX: "auto",
+};
+
+const kidOverlay: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  display: "grid",
+  placeItems: "center",
+  background: "rgba(0,0,0,0.25)",
+  zIndex: 9999,
+  padding:
+    "max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))",
+  boxSizing: "border-box",
+  overflow: "auto",
+};
+
+const kidFeedbackCard = (ok: boolean): React.CSSProperties => ({
+  width: "min(420px, 100%)",
+  maxWidth: "100%",
+  boxSizing: "border-box",
+  borderRadius: 22,
+  border: `3px solid ${ok ? "rgba(34,197,94,0.35)" : "rgba(255,99,177,0.35)"}`,
+  background: "rgba(255,255,255,0.92)",
+  boxShadow: "0 24px 60px rgba(0,0,0,0.22)",
+  padding: 18,
+  textAlign: "center",
+  color: "#1b1b1b",
+  overflow: "hidden",
+  animation: "pop 120ms ease-out",
+});
+
+const kidBodyScroll: React.CSSProperties = {
+    marginTop: 12,
+    minHeight: 0,
+    flex: 1,
+    overflow: "auto",
+    WebkitOverflowScrolling: "touch",
+    paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+  };
+  
+
+// ------ demo data ------
+const BASE = import.meta.env.BASE_URL;
+declare const __BUILD_VERSION__: string;
+const IMG_VER = __BUILD_VERSION__;
+
+// ⚠️ ここは元のまま（必要ならあなたのデータに置き換えてOK）
+const demoQuestions: Question[] = [
+  {
+    id: "q1",
+    title: "もんだい 1",
+    leftSrc: `${BASE}img/q1_top.png?v=${IMG_VER}`,
+    rightSrc: `${BASE}img/q1_bottom.png?v=${IMG_VER}`,
+    hotspots: [
+      { x: 0.143, y: 0.911, r: 0.3 },
+      { x: 0.539, y: 0.785, r: 0.1 },
+      { x: 0.823, y: 0.515, r: 0.1 },
+      { x: 0.376, y: 0.148, r: 0.1 },
+      { x: 0.797, y: 0.782, r: 0.1 },
+    ],
+  },
+  {
+    id: "q2",
+    title: "もんだい 2",
+    leftSrc: `${BASE}img/q2_top.svg?v=${IMG_VER}`,
+    rightSrc: `${BASE}img/q2_bottom.svg?v=${IMG_VER}`,
+    hotspots: [
+      { x: 0.85, y: 0.16, r: 0.12 },
+      { x: 0.21, y: 0.39, r: 0.14 },
+      { x: 0.588, y: 0.77, r: 0.1 },
+    ],
+  },
+];

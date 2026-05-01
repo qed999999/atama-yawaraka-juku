@@ -1,0 +1,6 @@
+@あたまやわらか塾_HostAddress = http://localhost:5020
+
+GET {{あたまやわらか塾_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

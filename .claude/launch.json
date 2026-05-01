@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "あたまやわらか塾",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--prefix", "あたまやわらか塾/clientapp", "vite", "--port", "5174"],
+      "port": 5174
+    }
+  ]
+}

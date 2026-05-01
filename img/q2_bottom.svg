@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+  <!-- 空 -->
+  <rect width="800" height="500" fill="#87CEEB"/>
+  <!-- 地面 -->
+  <rect x="0" y="350" width="800" height="150" fill="#7EC850"/>
+  <!-- 差分1: 太陽がオレンジ -->
+  <circle cx="680" cy="80" r="55" fill="#FF8C00"/>
+  <line x1="680" y1="10" x2="680" y2="0" stroke="#FF8C00" stroke-width="5"/>
+  <line x1="730" y1="30" x2="740" y2="20" stroke="#FF8C00" stroke-width="5"/>
+  <line x1="750" y1="80" x2="760" y2="80" stroke="#FF8C00" stroke-width="5"/>
+  <line x1="730" y1="130" x2="740" y2="140" stroke="#FF8C00" stroke-width="5"/>
+  <line x1="630" y1="30" x2="620" y2="20" stroke="#FF8C00" stroke-width="5"/>
+  <line x1="610" y1="80" x2="600" y2="80" stroke="#FF8C00" stroke-width="5"/>
+  <line x1="630" y1="130" x2="620" y2="140" stroke="#FF8C00" stroke-width="5"/>
+  <!-- 雲1 -->
+  <ellipse cx="200" cy="70" rx="70" ry="35" fill="white"/>
+  <ellipse cx="250" cy="60" rx="50" ry="30" fill="white"/>
+  <ellipse cx="160" cy="65" rx="45" ry="28" fill="white"/>
+  <!-- 雲2 -->
+  <ellipse cx="500" cy="110" rx="60" ry="30" fill="white"/>
+  <ellipse cx="545" cy="100" rx="45" ry="25" fill="white"/>
+  <!-- 家 -->
+  <rect x="80" y="230" width="180" height="130" fill="#F4A460" rx="4"/>
+  <!-- 差分2: 屋根が青 -->
+  <polygon points="60,235 170,160 280,235" fill="#2980B9"/>
+  <!-- ドア -->
+  <rect x="140" y="290" width="50" height="70" fill="#8B4513" rx="3"/>
+  <circle cx="180" cy="330" r="4" fill="#FFD700"/>
+  <!-- 窓 (左) -->
+  <rect x="95" y="260" width="35" height="35" fill="#AED8F0" rx="2"/>
+  <line x1="112.5" y1="260" x2="112.5" y2="295" stroke="white" stroke-width="2"/>
+  <line x1="95" y1="277.5" x2="130" y2="277.5" stroke="white" stroke-width="2"/>
+  <!-- 窓 (右) -->
+  <rect x="205" y="260" width="35" height="35" fill="#AED8F0" rx="2"/>
+  <line x1="222.5" y1="260" x2="222.5" y2="295" stroke="white" stroke-width="2"/>
+  <line x1="205" y1="277.5" x2="240" y2="277.5" stroke="white" stroke-width="2"/>
+  <!-- 木1 -->
+  <rect x="370" y="260" width="25" height="100" fill="#8B6914"/>
+  <circle cx="382" cy="230" r="55" fill="#2ECC40"/>
+  <circle cx="350" cy="250" r="40" fill="#27AE60"/>
+  <circle cx="415" cy="250" r="40" fill="#27AE60"/>
+  <!-- 木2 -->
+  <rect x="580" y="280" width="20" height="80" fill="#8B6914"/>
+  <circle cx="590" cy="255" r="45" fill="#2ECC40"/>
+  <circle cx="565" cy="270" r="32" fill="#27AE60"/>
+  <circle cx="618" cy="270" r="32" fill="#27AE60"/>
+  <!-- 花1 (赤) -->
+  <circle cx="310" cy="390" r="12" fill="#E74C3C"/>
+  <circle cx="310" cy="390" r="5" fill="#F1C40F"/>
+  <rect x="308" y="400" width="4" height="20" fill="#27AE60"/>
+  <!-- 差分3: 花2がない -->
+  <!-- 花3 (青) -->
+  <circle cx="700" cy="395" r="12" fill="#3498DB"/>
+  <circle cx="700" cy="395" r="5" fill="#F1C40F"/>
+  <rect x="698" y="405" width="4" height="20" fill="#27AE60"/>
+  <!-- 蝶々 -->
+  <ellipse cx="440" cy="180" rx="15" ry="10" fill="#E67E22" transform="rotate(-20 440 180)"/>
+  <ellipse cx="460" cy="180" rx="15" ry="10" fill="#E67E22" transform="rotate(20 460 180)"/>
+  <ellipse cx="443" cy="192" rx="10" ry="7" fill="#F39C12" transform="rotate(-20 443 192)"/>
+  <ellipse cx="457" cy="192" rx="10" ry="7" fill="#F39C12" transform="rotate(20 457 192)"/>
+  <circle cx="450" cy="185" r="3" fill="#2C3E50"/>
+  <!-- 差分1の鳥はそのまま（鳥は同じ） -->
+  <ellipse cx="130" cy="120" rx="18" ry="12" fill="#E74C3C"/>
+  <circle cx="143" cy="115" r="7" fill="#E74C3C"/>
+  <circle cx="146" cy="113" r="2.5" fill="white"/>
+  <circle cx="147" cy="113" r="1.2" fill="black"/>
+  <polygon points="150,115 162,113 150,118" fill="#F39C12"/>
+  <path d="M118,110 Q108,100 115,108" stroke="#E74C3C" stroke-width="3" fill="none"/>
+  <path d="M120,118 Q110,125 118,120" stroke="#E74C3C" stroke-width="3" fill="none"/>
+</svg>

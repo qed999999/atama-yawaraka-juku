@@ -28,7 +28,7 @@ import ManekkoGame from "./games/ManekkoGame";
 import HissanGame from "./games/HissanGame";
 import BigSmallGame from "./games/BigSmallGame";
 
-const APP_VERSION = "v1.1.0";
+const APP_VERSION = "v1.1.1";
 
 type Screen =
   | "home"

@@ -6,22 +6,23 @@
 - **ビルド出力**: `あたまやわらか塾/wwwroot/` （本番配信先）
 - **ビルドコマンド**: `cd あたまやわらか塾/clientapp && npm run build`
 
-## 必須ルール：ファイル変更前に必ずバックアップ
+## 必須ルール：バージョンを毎回更新
 
-**ファイルを変更する前に、必ず `bk/` フォルダへ日付時刻付きでバックアップすること。**
+**コード修正のたびに `App.tsx` の `APP_VERSION` を更新すること。**
 
-- `bk/` フォルダはファイルと同じ階層に置く
-- ファイル名形式：`元のファイル名_YYYYMMDD_HHMMSS.拡張子`
-- 例：`src/games/bk/ShoppingGame_20260401_120000.tsx`
+- 場所：`あたまやわらか塾/clientapp/src/App.tsx` 上部の `const APP_VERSION = "vX.Y.Z";`
+- 表示位置：ホームメニュー「メニュー」ヘッダ右の小さな文字
+- インクリメント方針（セマンティックバージョニング）：
+  - **patch（v1.1.0 → v1.1.1）**：バグ修正・小さな表示調整
+  - **minor（v1.1.0 → v1.2.0）**：新ゲーム追加・新機能追加
+  - **major（v1.1.0 → v2.0.0）**：大きなUI刷新・破壊的変更
+- 修正コミットには新バージョンを含める
 
-```bash
-# バックアップ例（PowerShell）
-$src = "D:/知育アプリ/あたまやわらか塾/clientapp/src/games/ShoppingGame.tsx"
-$ts = Get-Date -Format "yyyyMMdd_HHmmss"
-$dst = "D:/知育アプリ/あたまやわらか塾/clientapp/src/games/bk/ShoppingGame_$ts.tsx"
-New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
-Copy-Item $src $dst
-```
+## 必須ルール：バックアップは作らない
+
+**`bk/` フォルダへのバックアップは作成しない。**
+
+GitHub 管理になったため、履歴は git に任せる。`bk/` フォルダは作らず、直接編集する。
 
 ## 必須ルール：コード変更後は必ずビルド
 

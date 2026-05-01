@@ -26,6 +26,7 @@ import DropTenGame from "./games/DropTenGame";
 import KanjiBingoGame from "./games/KanjiBingoGame";
 import ManekkoGame from "./games/ManekkoGame";
 import HissanGame from "./games/HissanGame";
+import BigSmallGame from "./games/BigSmallGame";
 
 type Screen =
   | "home"
@@ -55,7 +56,8 @@ type Screen =
   | "dropTen"
   | "kanjiBingo"
   | "manekko"
-  | "hissan";
+  | "hissan"
+  | "bigSmall";
 
 // ===== Player Management =====
 type Player = { id: string; name: string; age?: number };
@@ -152,6 +154,7 @@ const GENRES: GenreDef[] = [
     icon: "🧠", label: "きおく・はんだん",
     color: "rgba(124,58,237,0.10)", borderColor: "rgba(124,58,237,0.28)",
     games: [
+      { screen: "bigSmall", icon: "🐘", title: "どっちがおおきい？", sub: "おおきさをくらべよう", minAge: 4, maxAge: 6 },
       { screen: "kiokuCard", icon: "🃏", title: "きおくカード", sub: "おなじペアをさがそう！", minAge: 4, maxAge: 6 },
       { screen: "manekko",  icon: "🎵", title: "まねっこゲーム", sub: "ひかったじゅんに タップ！", minAge: 4, maxAge: 7 },
       { screen: "silhouette", icon: "🕵️", title: "シルエットあて", sub: "これ、なーんだ？", minAge: 4, maxAge: 7 },
@@ -418,6 +421,7 @@ export default function App() {
   if (screen === "kanjiBingo") return <KanjiBingoGame onExit={exit} onScore={sc("kanjiBingo")} difficultyBests={getDifficultyBestMap("kanjiBingo")} unit={un("kanjiBingo")} />;
   if (screen === "manekko")   return <ManekkoGame onExit={exit} onScore={sc("manekko")} difficultyBests={getDifficultyBestMap("manekko")} unit={un("manekko")} />;
   if (screen === "hissan")    return <HissanGame  onExit={exit} onScore={sc("hissan")}  difficultyBests={getDifficultyBestMap("hissan")}  unit={un("hissan")} />;
+  if (screen === "bigSmall")  return <BigSmallGame onExit={exit} onScore={sc("bigSmall")} prevBest={pb("bigSmall")} unit={un("bigSmall")} />;
 
   return (
     <div style={stageFixedNoScroll}>

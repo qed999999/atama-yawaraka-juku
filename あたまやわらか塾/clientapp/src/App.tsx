@@ -432,7 +432,10 @@ export default function App() {
       <div style={cardNoScroll}>
         {/* ヘッダー */}
         <div style={headerRowNoWrap}>
-          <div style={titleNoWrap}>メニュー</div>
+          <div style={titleNoWrap}>
+            メニュー
+            <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 900, color: "#999", letterSpacing: "0.04em" }}>{APP_VERSION}</span>
+          </div>
           <div style={headerBtnsNoWrap}>
             <button style={kidHeaderBtn} onClick={() => { setShowDataModal(true); setDataMsg(""); setImportText(""); }}>
               📦 データ
@@ -618,7 +621,6 @@ export default function App() {
         <div style={contentScroll}>
           {/* タイトルバナー */}
           <div style={titleBanner}>
-            <div style={versionBadge}>{APP_VERSION}</div>
             <div style={titleBannerRow}>
               <span style={{ fontSize: "clamp(22px, 6vw, 28px)" }}>🧠</span>
               <span style={titleBannerText}>あたまやわらか塾</span>
@@ -922,7 +924,6 @@ const kidPanel: React.CSSProperties = {
 };
 
 const titleBanner: React.CSSProperties = {
-  position: "relative",
   marginTop: 4,
   padding: "10px 14px",
   borderRadius: 20,
@@ -931,18 +932,6 @@ const titleBanner: React.CSSProperties = {
   boxShadow: "0 8px 20px rgba(255,100,180,0.12)",
   textAlign: "center",
   boxSizing: "border-box",
-};
-
-const versionBadge: React.CSSProperties = {
-  position: "absolute",
-  top: 6,
-  right: 10,
-  fontSize: "clamp(9px, 2.2vw, 11px)",
-  fontWeight: 900,
-  color: "#a3559d",
-  opacity: 0.7,
-  letterSpacing: "0.04em",
-  pointerEvents: "none",
 };
 
 const titleBannerRow: React.CSSProperties = {

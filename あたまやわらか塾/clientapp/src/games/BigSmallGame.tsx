@@ -210,9 +210,9 @@ export default function BigSmallGame({ onExit, onScore, prevBest, unit = "てん
       }
     }
     return {
-      flex: 1,
-      minWidth: 0,
-      padding: "16px 8px",
+      width: "min(45%, 38vh, 240px)",
+      aspectRatio: "1 / 1",
+      padding: 8,
       borderRadius: 22,
       border,
       background: bg,
@@ -223,6 +223,8 @@ export default function BigSmallGame({ onExit, onScore, prevBest, unit = "てん
       alignItems: "center",
       justifyContent: "center",
       gap: 6,
+      boxSizing: "border-box",
+      flexShrink: 0,
     };
   };
 
@@ -240,14 +242,14 @@ export default function BigSmallGame({ onExit, onScore, prevBest, unit = "てん
             {mode === "big" ? "おおきいのは どっち？" : "ちいさいのは どっち？"}
           </div>
 
-          <div style={{ display: "flex", gap: 12, width: "100%", flex: 1, alignItems: "stretch" }}>
+          <div style={{ display: "flex", gap: 12, width: "100%", flex: 1, alignItems: "center", justifyContent: "center" }}>
             <button onClick={() => pick("left")} disabled={!!feedback} style={cellStyle("left")}>
-              <div style={{ fontSize: "clamp(64px, 18vw, 110px)", lineHeight: 1 }}>{pair.left.emoji}</div>
-              <div style={{ fontSize: "clamp(13px, 3.5vw, 16px)", fontWeight: 1000, opacity: 0.85 }}>{pair.left.name}</div>
+              <div style={{ fontSize: "clamp(56px, 15vw, 96px)", lineHeight: 1 }}>{pair.left.emoji}</div>
+              <div style={{ fontSize: "clamp(12px, 3.2vw, 15px)", fontWeight: 1000, opacity: 0.85 }}>{pair.left.name}</div>
             </button>
             <button onClick={() => pick("right")} disabled={!!feedback} style={cellStyle("right")}>
-              <div style={{ fontSize: "clamp(64px, 18vw, 110px)", lineHeight: 1 }}>{pair.right.emoji}</div>
-              <div style={{ fontSize: "clamp(13px, 3.5vw, 16px)", fontWeight: 1000, opacity: 0.85 }}>{pair.right.name}</div>
+              <div style={{ fontSize: "clamp(56px, 15vw, 96px)", lineHeight: 1 }}>{pair.right.emoji}</div>
+              <div style={{ fontSize: "clamp(12px, 3.2vw, 15px)", fontWeight: 1000, opacity: 0.85 }}>{pair.right.name}</div>
             </button>
           </div>
         </div>
